@@ -64,6 +64,46 @@ Print a valid profile template:
 urent profile-template --profile galaxy-s22 > my-phone.json
 ```
 
+Refresh tokens and print the new token document to stdout. Omitting the flag
+prompts without echoing the refresh token:
+
+```bash
+urent refresh
+```
+
+For scripting, pass the token directly. The optional access token reproduces the
+official application's `Authorization: Bearer` header:
+
+```bash
+urent refresh --refresh-token REFRESH_TOKEN --access-token ACCESS_TOKEN
+```
+
+Passing credentials as command-line arguments can expose them through shell
+history and process listings; prefer the interactive prompt for manual use.
+
+Read both existing tokens from JSON and optionally save the refreshed document:
+
+```bash
+urent refresh --token-file tokens.json --output-file refreshed-tokens.json
+```
+
+For an in-place file update, use the shorter form:
+
+```bash
+urent refresh --filepath tokens.json
+```
+
+The refreshed JSON is always printed to stdout. `--output-file` additionally
+writes it atomically; it may point to the same file as `--token-file` when an
+in-place update is desired.
+
+There is also a paste-friendly helper. It accepts a complete pretty-printed JSON
+object interactively and refreshes as soon as the closing brace is entered:
+
+```bash
+uv run urent refresh
+```
+
 By default, the phone profile, device ID, AppsFlyer ID, and session ID are newly
 generated for each process. To reuse one complete persona explicitly:
 
