@@ -1,6 +1,9 @@
 .env
 capture/
 tokens.json
+proxy.txt
+*.proxy.txt
+*.proxy.txt.cursor
 .device.json
 *.device.json
 apk/

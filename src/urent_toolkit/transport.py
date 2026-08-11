@@ -22,6 +22,7 @@ class UrentTransport:
         identity: DeviceIdentity,
         profile: AndroidProfile,
         client: httpx.Client | None = None,
+        proxy: str | None = None,
     ) -> None:
         self.settings = settings
         self.identity = identity
@@ -29,6 +30,7 @@ class UrentTransport:
         self.client = client or httpx.Client(
             timeout=settings.timeout,
             follow_redirects=False,
+            proxy=proxy,
         )
         self._owns_client = client is None
 

@@ -47,12 +47,17 @@ class Settings:
     mts_redirect_uri: str
     mts_scope: str
     fingerprint_json: str | None
+    proxy_file: Path | None
 
     @classmethod
     def from_env(cls, data_dir: Path | None = None) -> "Settings":
         base_dir = (data_dir or Path.cwd()).resolve()
         load_dotenv(base_dir / ".env")
         profile_file = _env("PROFILE_FILE")
+        proxy_file = _env("PROXY_FILE").strip()
+        proxy_path = Path(proxy_file).expanduser() if proxy_file else None
+        if proxy_path is not None and not proxy_path.is_absolute():
+            proxy_path = base_dir / proxy_path
         return cls(
             data_dir=base_dir,
             timeout=float(_env("TIMEOUT", "30")),
@@ -83,6 +88,7 @@ class Settings:
             ),
             mts_scope=_env("MTS_SCOPE", DEFAULT_MTS_SCOPE),
             fingerprint_json=os.getenv("MTS_FINGERPRINT_JSON") or None,
+            proxy_file=proxy_path.resolve() if proxy_path else None,
         )
 
     @property

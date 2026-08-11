@@ -22,6 +22,7 @@ requests only—no browser automation or Playwright.
 - Random fresh device persona on every run by default
 - Built-in, custom, or explicitly persisted device profiles
 - Environment-based configuration with no secrets committed to Git
+- HTTP/HTTPS/SOCKS5 proxy rotation with one stable proxy per client session
 
 ## Installation
 
@@ -138,6 +139,8 @@ headers, fingerprint, and API payload from this profile.
 ## Python API
 
 ```python
+from pathlib import Path
+
 from urent_toolkit import UrentClient
 
 client = UrentClient.from_env(profile="pixel-8")
@@ -150,6 +153,38 @@ profile = client.request("GET", "/api/v1/profile")
 profile.raise_for_status()
 print(profile.json())
 ```
+
+Sessions can also be restored and refreshed without another SMS login:
+
+```python
+client.restore_session(Path("tokens.json"))
+if not client.ensure_valid_session():
+    raise RuntimeError("Session has expired and cannot be refreshed")
+```
+
+`is_session_valid()` performs a local expiry check with a 30-second safety
+window. `ensure_valid_session()` uses the refresh token when the access token is
+expired and atomically updates the token file by default. For in-memory transfer,
+use `serialize_session()` and `deserialize_session()`.
+
+To use a rotating proxy list in both CLI commands and the Python API, set:
+
+```dotenv
+URENT_PROXY_FILE=proxy.txt
+```
+
+The file contains one URL per line; blank lines and lines beginning with `#` are
+ignored. Credentials may be embedded in the URL:
+
+```text
+http://user:password@127.0.0.1:8080
+socks5://user:password@127.0.0.1:1080
+```
+
+Each new `UrentClient.from_env()` takes the next proxy. The choice is fixed for
+the complete session (MTS login, Urent token exchange, refresh, and API calls).
+The rotation cursor is stored next to the list as `proxy.txt.cursor`. Leave
+`URENT_PROXY_FILE` empty to connect without a proxy.
 
 Pass `profile_file=Path(...)` for a custom phone or `device_file=Path(...)` to
 persist the complete persona.
@@ -164,6 +199,7 @@ All settings use the `URENT_` prefix unless noted otherwise.
 | `URENT_ANDROID_PROFILE` | random | Built-in profile id |
 | `URENT_PROFILE_FILE` | none | Custom profile JSON |
 | `URENT_TIMEOUT` | `30` | HTTP timeout in seconds |
+| `URENT_PROXY_FILE` | none | Rotating HTTP/SOCKS5 proxy-list path |
 | `MTS_FINGERPRINT_JSON` | generated | Full fingerprint override |
 
 Advanced URLs, scopes, app metadata, and request version can also be overridden;

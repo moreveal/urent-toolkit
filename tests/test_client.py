@@ -11,6 +11,29 @@ from urent_toolkit.client import UrentClient
 
 
 class UrentClientTest(unittest.TestCase):
+    @patch("urent_toolkit.client.create_persona", return_value=(Mock(), Mock()))
+    @patch("urent_toolkit.client.ProxyPool")
+    @patch("urent_toolkit.client.Settings.from_env")
+    def test_from_env_leases_one_proxy_for_the_session(
+        self,
+        settings_from_env: Mock,
+        proxy_pool: Mock,
+        _create_persona: Mock,
+    ) -> None:
+        proxy_file = Mock()
+        settings_from_env.return_value = SimpleNamespace(
+            android_profile=None,
+            profile_file=None,
+            proxy_file=proxy_file,
+        )
+        proxy_pool.return_value.acquire.return_value = "socks5://proxy.test:1080"
+
+        client = UrentClient.from_env()
+
+        self.assertEqual(client.proxy, "socks5://proxy.test:1080")
+        proxy_pool.assert_called_once_with(proxy_file)
+        proxy_pool.return_value.acquire.assert_called_once_with()
+
     @patch("urent_toolkit.client.save_tokens")
     @patch("urent_toolkit.client.Authenticator")
     def test_login_can_return_tokens_without_persisting_them(

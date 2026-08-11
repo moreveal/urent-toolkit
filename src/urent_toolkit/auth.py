@@ -148,12 +148,14 @@ class Authenticator:
         profile: AndroidProfile,
         output: Output = print,
         raw_output: RawOutput | None = None,
+        proxy: str | None = None,
     ) -> None:
         self.settings = settings
         self.identity = identity
         self.profile = profile
         self.output = output
         self.raw_output = raw_output
+        self.proxy = proxy
 
     def _emit_raw(self, stage: str, payload: dict[str, Any]) -> None:
         if self.raw_output is not None:
@@ -262,7 +264,11 @@ class Authenticator:
             "login_hint": normalize_phone(phone),
             "response_type": "code",
         }
-        with httpx.Client(timeout=self.settings.timeout, follow_redirects=False) as client:
+        with httpx.Client(
+            timeout=self.settings.timeout,
+            follow_redirects=False,
+            proxy=self.proxy,
+        ) as client:
             self.output("[1/5] Starting MTS OAuth")
             start = client.get(
                 self.settings.mts_authorize_url,
@@ -435,7 +441,12 @@ class Authenticator:
             "phoneModelType": "Android",
             "uniqueId": self.identity.device_id,
         }
-        with UrentTransport(self.settings, self.identity, self.profile) as transport:
+        with UrentTransport(
+            self.settings,
+            self.identity,
+            self.profile,
+            proxy=self.proxy,
+        ) as transport:
             self.output("[4/5] Exchanging the MTS authorization code")
             social_response = transport.request(
                 "POST",
