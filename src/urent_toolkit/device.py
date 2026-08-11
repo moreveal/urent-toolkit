@@ -4,7 +4,7 @@ import json
 import secrets
 import time
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 from urent_toolkit.errors import ConfigurationError
@@ -24,7 +24,7 @@ class DeviceIdentity:
     locale: str
 
     @classmethod
-    def fresh(cls) -> "DeviceIdentity":
+    def fresh(cls) -> DeviceIdentity:
         now_ms = int(time.time() * 1000)
         return cls(
             device_id=secrets.token_hex(8),
@@ -39,7 +39,7 @@ class DeviceIdentity:
         )
 
     @classmethod
-    def from_dict(cls, value: dict[str, object]) -> "DeviceIdentity":
+    def from_dict(cls, value: dict[str, object]) -> DeviceIdentity:
         return cls(
             device_id=str(value["device_id"]),
             appsflyer_id=str(value["appsflyer_id"]),
@@ -69,14 +69,18 @@ def create_persona(
         try:
             value = json.loads(device_file.read_text(encoding="utf-8"))
             identity = DeviceIdentity.from_dict(value)
-            saved_profile = AndroidProfile.from_dict(value["profile"])
         except (KeyError, OSError, json.JSONDecodeError, TypeError) as exc:
             raise ConfigurationError(f"Invalid device file {device_file}: {exc}") from exc
-        profile = (
-            choose_profile(requested_profile, profile_file)
-            if requested_profile or profile_file
-            else saved_profile
-        )
+        if requested_profile or profile_file:
+            profile = choose_profile(requested_profile, profile_file)
+        else:
+            try:
+                profile = AndroidProfile.from_dict(value["profile"])
+            except (KeyError, TypeError) as exc:
+                raise ConfigurationError(
+                    f"Legacy device file {device_file} has no Android profile; "
+                    "provide a profile once to migrate it"
+                ) from exc
     else:
         identity = new_device()
         profile = choose_profile(requested_profile, profile_file)

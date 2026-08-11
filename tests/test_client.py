@@ -97,6 +97,38 @@ class UrentClientTest(unittest.TestCase):
         )
         self.assertEqual(request.kwargs["access_token"], "old-access")
 
+    def test_create_card_binding_url_uses_observed_urent_endpoint(self) -> None:
+        client = UrentClient(Mock(), Mock(), Mock(), {"access_token": "access"})
+        client.ensure_valid_session = Mock(return_value=True)
+        client.request = Mock(
+            return_value=httpx.Response(
+                200,
+                json={"confirmationUrl": "https://yoomoney.ru/checkout/example"},
+            )
+        )
+        token_file = Mock()
+
+        result = client.create_card_binding_url(token_file=token_file)
+
+        self.assertEqual(result, "https://yoomoney.ru/checkout/example")
+        client.ensure_valid_session.assert_called_once_with(
+            auto_refresh=True,
+            token_file=token_file,
+        )
+        client.request.assert_called_once_with(
+            "POST",
+            "/api/v1/yookassa/addcard/webview",
+            params={"cardPayType": "bank_card"},
+        )
+
+    def test_create_card_binding_url_rejects_missing_url(self) -> None:
+        client = UrentClient(Mock(), Mock(), Mock(), {"access_token": "access"})
+        client.ensure_valid_session = Mock(return_value=True)
+        client.request = Mock(return_value=httpx.Response(200, json={}))
+
+        with self.assertRaisesRegex(RuntimeError, "no confirmationUrl"):
+            client.create_card_binding_url()
+
 
 if __name__ == "__main__":
     unittest.main()

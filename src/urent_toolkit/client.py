@@ -4,13 +4,14 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import httpx
 
 from urent_toolkit.auth import Authenticator, response_json
 from urent_toolkit.config import Settings
 from urent_toolkit.device import DeviceIdentity, create_persona
+from urent_toolkit.errors import AuthenticationError, UrentError
 from urent_toolkit.profiles import AndroidProfile
 from urent_toolkit.proxy import ProxyPool, validate_proxy
 from urent_toolkit.storage import (
@@ -207,3 +208,47 @@ class UrentClient:
                 access_token=token,
                 params=params,
             )
+
+    def create_card_binding_url(
+        self,
+        *,
+        card_type: str = "bank_card",
+        deeplink_url: str | None = None,
+        token_file: Path | None = None,
+        auto_refresh: bool = True,
+    ) -> str:
+        """Create a fresh YooKassa card-binding URL through the Urent API."""
+        if card_type not in {"bank_card", "sberbank"}:
+            raise ValueError("card_type must be 'bank_card' or 'sberbank'")
+        if not self.ensure_valid_session(
+            auto_refresh=auto_refresh,
+            token_file=token_file,
+        ):
+            raise AuthenticationError("A valid Urent session is required")
+
+        params: dict[str, str] = {"cardPayType": card_type}
+        if deeplink_url:
+            params["url"] = deeplink_url
+        response = self.request(
+            "POST",
+            "/api/v1/yookassa/addcard/webview",
+            params=params,
+        )
+        if not response.is_success:
+            raise UrentError(
+                f"Urent card binding: HTTP {response.status_code}"
+            )
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise UrentError("Urent card binding returned non-JSON data") from exc
+        if not isinstance(payload, dict):
+            raise UrentError("Urent card binding returned an invalid response")
+
+        confirmation_url = payload.get("confirmationUrl")
+        if not isinstance(confirmation_url, str) or not confirmation_url.strip():
+            raise UrentError("Urent card binding response has no confirmationUrl")
+        parsed = urlparse(confirmation_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise UrentError("Urent card binding returned an invalid confirmationUrl")
+        return confirmation_url

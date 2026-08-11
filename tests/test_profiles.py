@@ -48,6 +48,27 @@ class AndroidProfilesTest(unittest.TestCase):
             self.assertEqual(first_profile, second_profile)
             self.assertNotEqual(first_identity.session_id, second_identity.session_id)
 
+    def test_legacy_device_file_can_be_migrated_with_explicit_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "legacy.device.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "device_id": "legacy-device",
+                        "appsflyer_id": "legacy-appsflyer",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            identity, profile = create_persona("pixel-8", device_file=path)
+            stored = json.loads(path.read_text(encoding="utf-8"))
+
+            self.assertEqual(identity.device_id, "legacy-device")
+            self.assertEqual(identity.appsflyer_id, "legacy-appsflyer")
+            self.assertEqual(profile.id, "pixel-8")
+            self.assertEqual(stored["profile"]["id"], "pixel-8")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,6 +23,7 @@ requests only—no browser automation or Playwright.
 - Built-in, custom, or explicitly persisted device profiles
 - Environment-based configuration with no secrets committed to Git
 - HTTP/HTTPS/SOCKS5 proxy rotation with one stable proxy per client session
+- YooKassa card-binding URL creation through an authenticated Urent session
 
 ## Installation
 
@@ -157,10 +158,27 @@ print(profile.json())
 Sessions can also be restored and refreshed without another SMS login:
 
 ```python
+from pathlib import Path
+
+from urent_toolkit import UrentClient
+
+client = UrentClient.from_env(device_file=Path("urent.device.json"))
 client.restore_session(Path("tokens.json"))
 if not client.ensure_valid_session():
     raise RuntimeError("Session has expired and cannot be refreshed")
+
+confirmation_url = client.create_card_binding_url(
+    token_file=Path("tokens.json"),
+)
+print(confirmation_url)
 ```
+
+For the initial login, create the client with the same `device_file` and pass
+`token_file=Path("tokens.json")` to `login()`. This persists the complete Android
+persona separately from the OAuth token document. Reuse both files on later
+runs so the account keeps the same device identity. The card-binding method
+creates a fresh URL through Urent's `/api/v1/yookassa/addcard/webview` endpoint;
+the URL is normally short-lived and should not be truncated or published.
 
 `is_session_valid()` performs a local expiry check with a 30-second safety
 window. `ensure_valid_session()` uses the refresh token when the access token is
