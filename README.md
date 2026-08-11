@@ -144,3 +144,19 @@ device files, traffic captures, and `.env` as credentials. They are excluded by
 the included `.gitignore`, but filesystem permissions remain your responsibility.
 
 This repository is not affiliated with or endorsed by Urent or MTS.
+
+## Private Telegram test bot
+
+The test bot is a separate SDK consumer in `telegram_test_bot/`. Configure its
+own `.env`, then run it with uv:
+
+```bash
+uv run --project telegram_test_bot urent-test-bot
+```
+
+Send `/login`, then the account phone number and the four-digit SMS code. The bot
+returns `tokens.json` as a Telegram document. It accepts only allowlisted users in
+private chats, tries to delete phone/code messages, keeps the OTP only in memory,
+and does not write the returned tokens to the local filesystem. Telegram still
+transports and may retain chat data, so use this only with your own test account
+and delete the token document after use.
