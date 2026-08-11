@@ -4,10 +4,11 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 
-from urent_toolkit.auth import Authenticator
+from urent_toolkit.auth import Authenticator, response_json
 from urent_toolkit.config import Settings
 from urent_toolkit.device import DeviceIdentity, create_persona
 from urent_toolkit.profiles import AndroidProfile
@@ -36,7 +37,7 @@ class UrentClient:
         profile: str | None = None,
         profile_file: Path | None = None,
         device_file: Path | None = None,
-    ) -> "UrentClient":
+    ) -> UrentClient:
         settings = Settings.from_env(data_dir)
         identity, selected = create_persona(
             profile or settings.android_profile,
@@ -55,12 +56,54 @@ class UrentClient:
         otp_provider: Callable[[], str],
         *,
         token_file: Path | None = None,
+        persist_tokens: bool = True,
+        output: Callable[[str], None] = print,
+        raw_output: Callable[[str, dict[str, Any]], None] | None = None,
+    ) -> dict[str, Any]:
+        authenticator = Authenticator(
+            self.settings,
+            self.identity,
+            self.profile,
+            output,
+            raw_output,
+        )
+        self.tokens = authenticator.login(phone, otp_provider)
+        if persist_tokens:
+            save_tokens(token_file or self.settings.token_file, self.tokens)
+        return self.tokens
+
+    def refresh_tokens(
+        self,
+        *,
+        token_file: Path | None = None,
+        persist_tokens: bool = True,
         output: Callable[[str], None] = print,
     ) -> dict[str, Any]:
-        authenticator = Authenticator(self.settings, self.identity, self.profile, output)
-        self.tokens = authenticator.login(phone, otp_provider)
-        save_tokens(token_file or self.settings.token_file, self.tokens)
-        return self.tokens
+        if not self.tokens or not self.tokens.get("refresh_token"):
+            raise ValueError("A refresh_token must be restored before refreshing")
+        form = {
+            "client_id": self.settings.client_id,
+            "client_secret": self.settings.client_secret,
+            "grant_type": "refresh_token",
+            "scope": self.settings.token_scope,
+            "refresh_token": self.tokens["refresh_token"],
+        }
+        token_url = f"{self.settings.api_base}/api/v1/connect/token"
+        output("Refreshing tokens through Urent /connect/token")
+        with UrentTransport(self.settings, self.identity, self.profile) as transport:
+            response = transport.request(
+                "POST",
+                token_url,
+                content=urlencode(form).encode("utf-8"),
+                content_type="application/x-www-form-urlencoded; charset=UTF-8",
+                access_token=self.tokens.get("access_token"),
+            )
+        refreshed = response_json(response, "Urent refresh /connect/token")
+        self.tokens = refreshed
+        if persist_tokens:
+            save_tokens(token_file or self.settings.token_file, refreshed)
+        output("Token refresh complete")
+        return refreshed
 
     def request(
         self,
